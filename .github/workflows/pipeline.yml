@@ -1,0 +1,136 @@
+name: DevOps Lab Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # permite lanzarlo manualmente desde GitHub
+
+jobs:
+
+  # ============================================================
+  # JOB 1: Verificar que LocalStack está corriendo
+  # ============================================================
+  verificar-localstack:
+    name: "1 - Verificar LocalStack"
+    runs-on: self-hosted
+    steps:
+      - name: Check LocalStack health
+        run: |
+          echo "🔍 Verificando LocalStack..."
+          HEALTH=$(curl -s http://localhost:4566/_localstack/health)
+          echo "$HEALTH" | python3 -m json.tool
+          if echo "$HEALTH" | grep -qE '"s3": "(available|running)"'; then
+            echo "✅ LocalStack OK"
+          else
+            echo "❌ LocalStack no está disponible"
+            exit 1
+          fi
+
+  # ============================================================
+  # JOB 2: Terraform - Infraestructura como Código
+  # ============================================================
+  terraform:
+    name: "2 - Terraform Apply"
+    runs-on: self-hosted
+    needs: verificar-localstack
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Mostrar outputs
+        run: terraform output
+
+  # ============================================================
+  # JOB 3: Build Docker y Deploy en Minikube
+  # ============================================================
+  build-and-deploy:
+    name: "3 - Build & Deploy en Minikube"
+    runs-on: self-hosted
+    needs: terraform
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar entorno Docker de Minikube
+        run: |
+          echo "🐳 Configurando Docker de Minikube..."
+          eval $(minikube docker-env)
+          echo "MINIKUBE_DOCKER_ENV=$(minikube docker-env | tr '\n' ' ')" >> $GITHUB_ENV
+
+      - name: Build imagen Docker
+        run: |
+          eval $(minikube docker-env)
+          echo "🔨 Construyendo imagen mi-app-s3:local..."
+          docker build -t mi-app-s3:local ./app-localstack
+          echo "✅ Imagen construida"
+          docker images | grep mi-app-s3
+
+      - name: Deploy en Kubernetes
+        run: |
+          echo "🚀 Desplegando en Minikube..."
+          kubectl apply -f app-localstack/deployment.yaml
+          kubectl rollout restart deployment/app-s3-deployment
+          echo "⏳ Esperando rollout..."
+          kubectl rollout status deployment/app-s3-deployment --timeout=120s
+          echo "✅ Deployment completado"
+
+  # ============================================================
+  # JOB 4: Verificación post-deploy
+  # ============================================================
+  verificar-deploy:
+    name: "4 - Verificar Deploy"
+    runs-on: self-hosted
+    needs: build-and-deploy
+
+    steps:
+      - name: Estado de los pods
+        run: |
+          echo "📦 Pods en namespace default:"
+          kubectl get pods -o wide
+          echo ""
+          echo "📦 Pods en namespace datadog:"
+          kubectl get pods -n datadog
+
+      - name: Logs de la app
+        run: |
+          echo "📋 Logs de la app Python:"
+          sleep 10
+          kubectl logs deployment/app-s3-deployment --tail=30
+
+      - name: Verificar archivo en S3 (LocalStack)
+        run: |
+          echo "🪣 Contenido del bucket S3:"
+          aws --endpoint-url=http://localhost:4566 \
+              --region us-east-1 \
+              s3 ls s3://terraform-localstack-bucket || \
+          awslocal s3 ls s3://terraform-localstack-bucket
+
+      - name: Resumen final
+        run: |
+          echo "============================================"
+          echo "✅ PIPELINE COMPLETADO CON ÉXITO"
+          echo "============================================"
+          echo "Commit: ${{ github.sha }}"
+          echo "Rama:   ${{ github.ref_name }}"
+          echo "Actor:  ${{ github.actor }}"
+          echo "Fecha:  $(date)"
+          echo "============================================"

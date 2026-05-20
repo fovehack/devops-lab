@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-s3-deployment
+  labels:
+    app: mi-app-s3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mi-app-s3
+  template:
+    metadata:
+      labels:
+        app: mi-app-s3
+    spec:
+      containers:
+      - name: python-app
+        image: mi-app-s3:local
+        imagePullPolicy: Never
+        env:
+        # CAMBIAMOS EL ENDPOINT A LA IP DEL BRIDGE DE MINIKUBE
+        - name: LOCALSTACK_URL
+          value: "http://192.168.49.1:4566"
+        - name: PYTHONUNBUFFERED
+          value: "1"

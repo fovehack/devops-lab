@@ -1,0 +1,16 @@
+datadog:
+  site: "datadoghq.eu"
+  clusterName: "minikube-fove"
+  apiKeyExistingSecret: "datadog-secret"
+  clusterChecks:
+    enabled: true
+  orchestratorExplorer:
+    enabled: true
+  # ---- ACTIVAMOS LOS LOGS PARA NUESTRA APP ----
+  logs:
+    enabled: true
+    containerCollectAll: true
+providers:
+  gke:
+    gch:
+      enabled: false
