@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'vm-agent' }
 
     environment {
         LOCALSTACK_URL = 'http://192.168.49.1:4566'
