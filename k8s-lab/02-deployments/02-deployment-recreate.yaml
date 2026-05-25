@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-recreate
+  labels:
+    modulo: "02-deployments"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mi-app-recreate
+
+  # Estrategia Recreate: mata TODOS los pods y luego crea los nuevos
+  # Produce downtime pero es más simple
+  strategy:
+    type: Recreate
+
+  template:
+    metadata:
+      labels:
+        app: mi-app-recreate
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+
+# Comandos para practicar:
+# kubectl apply -f 02-deployment-recreate.yaml
+# En otra terminal: kubectl get pods -w   (watch en tiempo real)
+# Luego actualiza: kubectl set image deployment/deployment-recreate app=nginx:1.25
+# Observa cómo TODOS los pods mueren antes de crear los nuevos (downtime)

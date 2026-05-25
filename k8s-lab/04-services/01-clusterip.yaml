@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-services-demo
+  labels:
+    modulo: "04-services"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: services-demo
+  template:
+    metadata:
+      labels:
+        app: services-demo
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+---
+# ClusterIP - Solo accesible DENTRO del clúster
+# Es el tipo por defecto
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-clusterip
+  labels:
+    modulo: "04-services"
+spec:
+  type: ClusterIP
+  selector:
+    app: services-demo        # Conecta con pods que tengan este label
+  ports:
+  - port: 80                  # Puerto del servicio
+    targetPort: 80            # Puerto del contenedor
+    protocol: TCP
+
+# Comandos:
+# kubectl apply -f 01-clusterip.yaml
+# kubectl get svc
+# kubectl describe svc svc-clusterip
+#
+# Probar desde dentro del clúster:
+# kubectl run test-curl --image=curlimages/curl --rm -it --restart=Never -- curl svc-clusterip

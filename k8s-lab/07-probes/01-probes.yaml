@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-con-probes
+  labels:
+    modulo: "07-probes"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: probes-demo
+  template:
+    metadata:
+      labels:
+        app: probes-demo
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+
+        # ── STARTUP PROBE ─────────────────────────────────────
+        # Se ejecuta PRIMERO al arrancar el contenedor.
+        # Mientras falla, no se ejecutan Liveness ni Readiness.
+        # Útil para apps que tardan mucho en arrancar.
+        # Si falla failureThreshold veces → reinicia el contenedor.
+        startupProbe:
+          httpGet:
+            path: /              # Endpoint a comprobar
+            port: 80
+          failureThreshold: 30   # Permite hasta 30 fallos
+          periodSeconds: 10      # Comprueba cada 10s
+          # Total tiempo de arranque permitido: 30 * 10 = 300s (5 min)
+
+        # ── READINESS PROBE ───────────────────────────────────
+        # Comprueba si el pod está listo para recibir tráfico.
+        # Si falla → K8s SACA el pod del Service (no envía tráfico)
+        # pero NO lo reinicia. El pod sigue corriendo.
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5  # Espera 5s tras arrancar antes de empezar
+          periodSeconds: 5        # Comprueba cada 5s
+          successThreshold: 1     # 1 éxito para marcar como ready
+          failureThreshold: 3     # 3 fallos para marcar como not-ready
+          timeoutSeconds: 3       # Timeout por comprobación
+
+        # ── LIVENESS PROBE ────────────────────────────────────
+        # Comprueba si el contenedor sigue "vivo".
+        # Si falla → K8s REINICIA el contenedor.
+        # Detecta deadlocks o estados corruptos.
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 15  # Espera más que readiness para estabilizarse
+          periodSeconds: 20
+          failureThreshold: 3
+          timeoutSeconds: 5
+---
+# Ejemplo con probe de tipo COMMAND (ejecuta un comando)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-probe-command
+  labels:
+    modulo: "07-probes"
+spec:
+  containers:
+  - name: app
+    image: busybox
+    command: ["/bin/sh", "-c"]
+    args:
+    - |
+      # Crea el archivo de health al arrancar
+      touch /tmp/healthy
+      # A los 30s lo borra (simula fallo)
+      sleep 30
+      rm /tmp/healthy
+      # Se queda corriendo (Liveness detectará el fallo)
+      sleep 600
+
+    livenessProbe:
+      exec:
+        command:
+        - cat
+        - /tmp/healthy          # Falla si el archivo no existe
+      initialDelaySeconds: 5
+      periodSeconds: 5
+
+# Comandos:
+# kubectl apply -f 01-probes.yaml
+# kubectl get pods -w                          (watch en tiempo real)
+# kubectl describe pod <pod> | grep -A 10 Liveness
+#
+# Ver eventos de restart:
+# kubectl get events --sort-by='.lastTimestamp' | grep -i probe
+#
+# Simular fallo de readiness (quita el archivo):
+# kubectl exec -it <pod> -- rm /tmp/healthy
+# kubectl get pods   (verás READY 0/1)

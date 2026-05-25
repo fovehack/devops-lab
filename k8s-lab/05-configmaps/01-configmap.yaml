@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  labels:
+    modulo: "05-configmaps"
+data:
+  # Variables simples
+  APP_ENV: "desarrollo"
+  APP_PORT: "8080"
+  APP_LOG_LEVEL: "debug"
+  DB_HOST: "localhost"
+  DB_PORT: "5432"
+
+  # Archivo de configuración completo embebido
+  app.properties: |
+    ambiente=desarrollo
+    version=1.0.0
+    max_conexiones=100
+    timeout=30s
+
+  nginx.conf: |
+    server {
+      listen 80;
+      server_name localhost;
+      location / {
+        root /usr/share/nginx/html;
+        index index.html;
+      }
+      location /health {
+        return 200 'OK';
+        add_header Content-Type text/plain;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-con-configmap
+  labels:
+    modulo: "05-configmaps"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: configmap-demo
+  template:
+    metadata:
+      labels:
+        app: configmap-demo
+    spec:
+      volumes:
+      # Monta el ConfigMap como archivos
+      - name: config-vol
+        configMap:
+          name: app-config
+          items:
+          - key: nginx.conf
+            path: default.conf
+
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+
+        # Método 1: Variables de entorno individuales desde ConfigMap
+        env:
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: APP_ENV
+        - name: APP_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: APP_PORT
+
+        # Método 2: Todas las claves del ConfigMap como env vars
+        envFrom:
+        - configMapRef:
+            name: app-config
+
+        # Método 3: Montado como archivo
+        volumeMounts:
+        - name: config-vol
+          mountPath: /etc/nginx/conf.d
+
+# Comandos:
+# kubectl apply -f 01-configmap.yaml
+# kubectl get configmap app-config
+# kubectl describe configmap app-config
+#
+# Ver variables dentro del pod:
+# kubectl exec -it <pod> -- env | grep APP
+#
+# Ver archivo montado:
+# kubectl exec -it <pod> -- cat /etc/nginx/conf.d/default.conf
+#
+# Editar ConfigMap en vivo:
+# kubectl edit configmap app-config

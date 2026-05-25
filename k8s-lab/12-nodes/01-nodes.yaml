@@ -1,0 +1,148 @@
+# NODES Y SCHEDULING - Controlar dónde se ejecutan los pods
+# En Minikube solo hay 1 nodo, pero los conceptos aplican igual
+
+# Ver información del nodo:
+# kubectl get nodes
+# kubectl describe node minikube
+# kubectl get node minikube --show-labels
+
+# ── 1. NodeSelector - El más simple ──────────────────────────
+# Añadir una etiqueta al nodo primero:
+# kubectl label node minikube tipo=worker
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-nodeselector
+  labels:
+    modulo: "12-nodes"
+spec:
+  nodeSelector:
+    tipo: worker               # Solo se despliega en nodos con este label
+    kubernetes.io/os: linux    # Label automático de K8s
+
+  containers:
+  - name: nginx
+    image: nginx:alpine
+---
+# ── 2. Node Affinity - Más expresivo que nodeSelector ────────
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-affinity
+  labels:
+    modulo: "12-nodes"
+spec:
+  affinity:
+    nodeAffinity:
+      # REQUIRED: el pod NO se despliega si no cumple la condición
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/os
+            operator: In
+            values:
+            - linux
+
+      # PREFERRED: intenta cumplirlo pero no es obligatorio
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100            # Peso de la preferencia (1-100)
+        preference:
+          matchExpressions:
+          - key: tipo
+            operator: In
+            values:
+            - worker
+
+  containers:
+  - name: nginx
+    image: nginx:alpine
+---
+# ── 3. Taints y Tolerations ──────────────────────────────────
+# Taints: marcan un nodo para REPELER pods (solo los que "toleran" pueden entrar)
+# Se aplican al NODO:
+# kubectl taint node minikube dedicado=gpu:NoSchedule
+#
+# NoSchedule    → nuevos pods sin toleración no se programan
+# PreferNoSchedule → intenta evitar el nodo pero no es obligatorio
+# NoExecute     → expulsa pods ya corriendo que no tienen toleración
+#
+# Para quitar el taint:
+# kubectl taint node minikube dedicado=gpu:NoSchedule-
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-tolerations
+  labels:
+    modulo: "12-nodes"
+spec:
+  # Este pod TOLERA el taint y puede ejecutarse en el nodo marcado
+  tolerations:
+  - key: "dedicado"
+    operator: "Equal"
+    value: "gpu"
+    effect: "NoSchedule"
+
+  containers:
+  - name: nginx
+    image: nginx:alpine
+---
+# ── 4. Pod Affinity/Anti-Affinity ────────────────────────────
+# Controla la co-localización entre pods
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-anti-affinity
+  labels:
+    modulo: "12-nodes"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: anti-affinity-demo
+  template:
+    metadata:
+      labels:
+        app: anti-affinity-demo
+    spec:
+      affinity:
+        # Anti-affinity: evita poner 2 pods del mismo tipo en el mismo nodo
+        # Importante para alta disponibilidad
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - anti-affinity-demo
+              topologyKey: kubernetes.io/hostname  # Por nodo
+
+      containers:
+      - name: nginx
+        image: nginx:alpine
+
+# Comandos:
+# kubectl apply -f 01-nodes.yaml
+#
+# Ver en qué nodo está cada pod:
+# kubectl get pods -o wide
+#
+# Ver labels del nodo:
+# kubectl get node --show-labels
+#
+# Añadir label al nodo:
+# kubectl label node minikube tipo=worker
+#
+# Ver taints del nodo:
+# kubectl describe node minikube | grep Taints
+# kubectl taint node minikube dedicado=gpu:NoSchedule-
+#
+# Cordon/Uncordon (marcar nodo como no-schedulable):
+# kubectl cordon minikube     → no acepta nuevos pods
+# kubectl uncordon minikube   → vuelve a aceptar pods
+#
+# Drain (evacuar nodo para mantenimiento):
+# kubectl drain minikube --ignore-daemonsets

@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-basico
+  labels:
+    modulo: "02-deployments"
+spec:
+  replicas: 3                    # 3 pods corriendo siempre
+  selector:
+    matchLabels:
+      app: mi-app
+  
+  # Estrategia de actualización
+  strategy:
+    type: RollingUpdate          # Actualiza pods de uno en uno
+    rollingUpdate:
+      maxSurge: 1                # Máximo 1 pod extra durante update
+      maxUnavailable: 0          # Nunca dejar pods caídos durante update
+
+  template:
+    metadata:
+      labels:
+        app: mi-app
+        version: "1.0"
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        env:
+        - name: VERSION
+          value: "1.0"
+
+# Comandos para practicar:
+# kubectl apply -f 01-deployment-basico.yaml
+# kubectl get deployments
+# kubectl get pods -l app=mi-app
+# kubectl get replicasets
+#
+# Escalar:
+# kubectl scale deployment deployment-basico --replicas=5
+#
+# Actualizar imagen (rolling update):
+# kubectl set image deployment/deployment-basico nginx=nginx:1.25
+# kubectl rollout status deployment/deployment-basico
+#
+# Ver historial:
+# kubectl rollout history deployment/deployment-basico
+#
+# Rollback:
+# kubectl rollout undo deployment/deployment-basico

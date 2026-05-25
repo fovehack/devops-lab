@@ -1,0 +1,89 @@
+# NAMESPACES - Aislamiento lógico dentro del clúster
+# Útil para separar: desarrollo/staging/producción, equipos, aplicaciones
+
+# Crear namespaces
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: desarrollo
+  labels:
+    entorno: dev
+    modulo: "11-namespaces"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: produccion
+  labels:
+    entorno: prod
+    modulo: "11-namespaces"
+---
+# App en namespace "desarrollo"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mi-app
+  namespace: desarrollo        # ← namespace específico
+  labels:
+    modulo: "11-namespaces"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mi-app
+  template:
+    metadata:
+      labels:
+        app: mi-app
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        env:
+        - name: ENTORNO
+          value: "DESARROLLO"
+---
+# La misma app en namespace "produccion" (aislada)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mi-app
+  namespace: produccion        # ← mismo nombre, diferente namespace = OK
+  labels:
+    modulo: "11-namespaces"
+spec:
+  replicas: 3                  # Producción tiene más réplicas
+  selector:
+    matchLabels:
+      app: mi-app
+  template:
+    metadata:
+      labels:
+        app: mi-app
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        env:
+        - name: ENTORNO
+          value: "PRODUCCION"
+
+# Comandos:
+# kubectl apply -f 01-namespaces.yaml
+#
+# Ver recursos por namespace:
+# kubectl get all -n desarrollo
+# kubectl get all -n produccion
+#
+# Cambiar namespace por defecto (evita poner -n siempre):
+# kubectl config set-context --current --namespace=desarrollo
+#
+# Ver todos los namespaces:
+# kubectl get namespaces
+# kubectl get pods --all-namespaces
+# kubectl get pods -A               (abreviatura)
+#
+# DNS entre namespaces:
+# Desde cualquier pod puedes acceder a servicios de otros namespaces:
+# <servicio>.<namespace>.svc.cluster.local
+# Ej: svc-usuarios.desarrollo.svc.cluster.local

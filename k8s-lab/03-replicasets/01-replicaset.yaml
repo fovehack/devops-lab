@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: replicaset-demo
+  labels:
+    modulo: "03-replicasets"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rs-demo
+  template:
+    metadata:
+      labels:
+        app: rs-demo
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+
+# NOTA: En la práctica real NUNCA se usan ReplicaSets directamente.
+# Los Deployments los gestionan automáticamente.
+# Este ejemplo es solo para entender cómo funcionan.
+#
+# Comandos para practicar:
+# kubectl apply -f 01-replicaset.yaml
+# kubectl get rs
+# kubectl get pods -l app=rs-demo
+#
+# Prueba de auto-recuperación - borra un pod y observa cómo se recrea:
+# kubectl delete pod <nombre-de-un-pod>
+# kubectl get pods -w
+#
+# Escalar:
+# kubectl scale rs replicaset-demo --replicas=5

@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-con-resources
+  labels:
+    modulo: "08-resources"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: resources-demo
+  template:
+    metadata:
+      labels:
+        app: resources-demo
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+
+        resources:
+          # REQUESTS: Lo que el pod GARANTIZA tener (reserva en el nodo)
+          # El scheduler usa esto para decidir en qué nodo colocar el pod
+          requests:
+            memory: "64Mi"      # 64 Megabytes de RAM garantizados
+            cpu: "100m"         # 100 millicores = 0.1 CPU garantizado
+
+          # LIMITS: El máximo que puede usar
+          # Si supera memoria → OOMKilled (reinicio)
+          # Si supera CPU → throttling (se ralentiza, no se reinicia)
+          limits:
+            memory: "128Mi"     # Máximo 128MB RAM
+            cpu: "200m"         # Máximo 0.2 CPU
+---
+# LimitRange: Define límites por defecto para un namespace
+# Si un pod no especifica resources, se aplican estos
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: default
+  labels:
+    modulo: "08-resources"
+spec:
+  limits:
+  - type: Container
+    default:                    # Limits por defecto
+      cpu: "200m"
+      memory: "128Mi"
+    defaultRequest:             # Requests por defecto
+      cpu: "100m"
+      memory: "64Mi"
+    max:                        # Máximo permitido
+      cpu: "1"
+      memory: "512Mi"
+    min:                        # Mínimo requerido
+      cpu: "50m"
+      memory: "32Mi"
+---
+# ResourceQuota: Límites totales para TODO el namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: namespace-quota
+  namespace: default
+  labels:
+    modulo: "08-resources"
+spec:
+  hard:
+    requests.cpu: "2"           # Total CPU requests en el namespace
+    requests.memory: "1Gi"     # Total RAM requests en el namespace
+    limits.cpu: "4"             # Total CPU limits en el namespace
+    limits.memory: "2Gi"       # Total RAM limits en el namespace
+    pods: "10"                  # Máximo 10 pods en el namespace
+
+# Comandos:
+# kubectl apply -f 01-resources.yaml
+# kubectl get pods
+# kubectl describe pod <pod> | grep -A 10 Limits
+#
+# Ver uso actual de recursos:
+# minikube addons enable metrics-server
+# Verifica que el pod de metrics-server está corriendo
+# kubectl get pods -n kube-system | grep metrics
+# kubectl top pods                    (necesita metrics-server)
+# kubectl top nodes
+#
+# Instalar metrics-server en minikube:
+# minikube addons enable metrics-server
+#
+# Ver quota del namespace:
+# kubectl describe resourcequota namespace-quota
+# kubectl describe limitrange default-limits

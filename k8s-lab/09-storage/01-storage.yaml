@@ -1,0 +1,134 @@
+# ══════════════════════════════════════════════════════
+# TIPOS DE VOLÚMENES EN KUBERNETES
+# ══════════════════════════════════════════════════════
+
+# 1. EmptyDir - Temporal, se borra cuando el pod muere
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-emptydir
+  labels:
+    modulo: "09-storage"
+spec:
+  volumes:
+  - name: datos-temporales
+    emptyDir: {}               # Vive mientras el pod exista
+
+  containers:
+  - name: escritor
+    image: busybox
+    command: ["/bin/sh", "-c", "while true; do date >> /datos/log.txt; sleep 2; done"]
+    volumeMounts:
+    - name: datos-temporales
+      mountPath: /datos
+
+  - name: lector
+    image: busybox
+    command: ["/bin/sh", "-c", "while true; do cat /datos/log.txt; sleep 5; done"]
+    volumeMounts:
+    - name: datos-temporales
+      mountPath: /datos
+---
+# 2. HostPath - Monta un directorio del NODO (no recomendado en producción)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-hostpath
+  labels:
+    modulo: "09-storage"
+spec:
+  volumes:
+  - name: host-vol
+    hostPath:
+      path: /tmp/k8s-demo      # Directorio en el nodo Minikube
+      type: DirectoryOrCreate  # Crea el dir si no existe
+
+  containers:
+  - name: app
+    image: busybox
+    command: ["/bin/sh", "-c", "while true; do echo $(date) >> /mnt/data.txt; sleep 3; done"]
+    volumeMounts:
+    - name: host-vol
+      mountPath: /mnt
+---
+# 3. PersistentVolume (PV) - Almacenamiento persistente administrado por el admin
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-demo
+  labels:
+    modulo: "09-storage"
+spec:
+  capacity:
+    storage: 1Gi               # Tamaño del volumen
+  accessModes:
+  - ReadWriteOnce              # Solo un nodo puede escribir a la vez
+  # ReadOnlyMany  → múltiples nodos pueden leer
+  # ReadWriteMany → múltiples nodos pueden leer y escribir
+  persistentVolumeReclaimPolicy: Retain  # Qué hacer cuando se libera
+  # Retain   → conserva los datos (admin debe limpiar manualmente)
+  # Delete   → borra el volumen automáticamente
+  # Recycle  → deprecated
+  storageClassName: manual  # Clase de almacenamiento de Minikube
+  hostPath:
+    path: /tmp/pv-demo         # En Minikube usamos hostPath
+---
+# 4. PersistentVolumeClaim (PVC) - El pod "reclama" almacenamiento
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-demo
+  labels:
+    modulo: "09-storage"
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi           # Pide 500MB del PV disponible
+  storageClassName: manual
+---
+# 5. Pod que usa el PVC
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-con-pvc
+  labels:
+    modulo: "09-storage"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pvc-demo
+  template:
+    metadata:
+      labels:
+        app: pvc-demo
+    spec:
+      volumes:
+      - name: datos-persistentes
+        persistentVolumeClaim:
+          claimName: pvc-demo  # Usa el PVC creado arriba
+
+      containers:
+      - name: app
+        image: nginx:alpine
+        volumeMounts:
+        - name: datos-persistentes
+          mountPath: /usr/share/nginx/html
+
+# Comandos:
+# kubectl apply -f 01-storage.yaml
+# kubectl get pv
+# kubectl get pvc
+# kubectl describe pvc pvc-demo
+#
+# Ver que el PV está bound al PVC:
+# kubectl get pv pv-demo
+# STATUS debe ser "Bound"
+#
+# Escribir datos y verificar persistencia:
+# kubectl exec -it <pod> -- sh -c "echo 'datos persistentes' > /usr/share/nginx/html/test.txt"
+# kubectl delete pod <pod>           (K8s crea uno nuevo)
+# kubectl exec -it <nuevo-pod> -- cat /usr/share/nginx/html/test.txt
+# Los datos siguen ahí!
