@@ -41,7 +41,7 @@ jobs:
 
     steps:
       - name: Checkout código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Terraform Init
         run: terraform init
@@ -68,7 +68,7 @@ jobs:
 
     steps:
       - name: Checkout código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Configurar entorno Docker de Minikube
         run: |
