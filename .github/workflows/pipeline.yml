@@ -54,10 +54,9 @@ jobs:
           # Si el bucket ya existe en LocalStack, lo importa al estado
           # así Terraform sabe que existe y no intenta crearlo de nuevo
           BUCKET="terraform-localstack-bucket"
-          EXISTS=$(aws --endpoint-url=http://localhost:4566 \
-                      --region us-east-1 \
-                      s3api head-bucket --bucket $BUCKET 2>&1 || true)
-          if [ -z "$EXISTS" ]; then
+          if aws --endpoint-url=http://localhost:4566 \
+                 --region us-east-1 \
+                 s3api head-bucket --bucket $BUCKET 2>/dev/null; then
             echo "⚠️ Bucket existe, importando al estado de Terraform..."
             terraform import aws_s3_bucket.mi_bucket_local $BUCKET || true
             echo "✅ Bucket importado"
