@@ -49,11 +49,24 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
-      - name: Terraform Plan
-        run: terraform plan -out=tfplan
+      - name: Importar bucket si ya existe
+        run: |
+          # Si el bucket ya existe en LocalStack, lo importa al estado
+          # así Terraform sabe que existe y no intenta crearlo de nuevo
+          BUCKET="terraform-localstack-bucket"
+          EXISTS=$(aws --endpoint-url=http://localhost:4566 \
+                      --region us-east-1 \
+                      s3api head-bucket --bucket $BUCKET 2>&1 || true)
+          if [ -z "$EXISTS" ]; then
+            echo "⚠️ Bucket existe, importando al estado de Terraform..."
+            terraform import aws_s3_bucket.mi_bucket_local $BUCKET || true
+            echo "✅ Bucket importado"
+          else
+            echo "ℹ️ Bucket no existe, Terraform lo creará"
+          fi
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve -refresh=true
 
       - name: Mostrar outputs
         run: terraform output
