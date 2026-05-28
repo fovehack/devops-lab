@@ -6,10 +6,18 @@ datadog:
     enabled: true
   orchestratorExplorer:
     enabled: true
-  # ---- ACTIVAMOS LOS LOGS PARA NUESTRA APP ----
   logs:
     enabled: true
     containerCollectAll: true
+  kubelet:
+    tlsVerify: false
+  # Deshabilita checks de componentes no accesibles en Minikube
+  kubeScheduler:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  etcd:
+    enabled: false
 providers:
   gke:
     gch:
