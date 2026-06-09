@@ -1,0 +1,17 @@
+apiVersion: v1
+entries:
+  mi-app-chart:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-06-09T11:48:26.189985608+02:00"
+    description: Helm Chart para la app Python que interactúa con LocalStack S3
+    digest: c73d9219e4f6b2b1b1d0d40063aa36e2339fae6f3d564ae684c8930513fc0ae5
+    maintainers:
+    - email: reactydev@gmail.com
+      name: fovehack
+    name: mi-app-chart
+    type: application
+    urls:
+    - https://fovehack.github.io/devops-lab/mi-app-chart-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-06-09T11:48:26.189004956+02:00"

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mi-app-chart.fullname" . }}
+  labels:
+    {{- include "mi-app-chart.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mi-app-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mi-app-chart.selectorLabels" . | nindent 8 }}
+      {{- if .Values.datadog.logsEnabled }}
+      annotations:
+        ad.datadoghq.com/{{ .Chart.Name }}.logs: '[{"source":"{{ .Values.datadog.source }}","service":"{{ .Values.datadog.service }}"}]'
+      {{- end }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: LOCALSTACK_URL
+          value: {{ .Values.localstack.url | quote }}
+        - name: BUCKET_NAME
+          value: {{ .Values.localstack.bucketName | quote }}
+        - name: PYTHONUNBUFFERED
+          value: {{ .Values.env.pythonUnbuffered | quote }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
