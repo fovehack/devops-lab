@@ -1,0 +1,36 @@
+name: Feature Branch CI
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+  pull_request:
+    branches:
+      - develop
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  validar:
+    name: "Validar Feature"
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validar manifiestos Kubernetes
+        run: |
+          kubectl apply --dry-run=client -f app-localstack/deployment.yaml
+          echo "✅ Manifiestos K8s válidos"
+
+      - name: Validar Helm Chart
+        run: |
+          helm lint mi-app-chart
+          echo "✅ Helm Chart válido"
+
+      - name: Terraform Validate
+        working-directory: terraform
+        run: |
+          terraform init -backend=false
+          terraform validate
+          echo "✅ Terraform válido"

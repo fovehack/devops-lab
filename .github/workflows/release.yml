@@ -1,0 +1,50 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  release:
+    name: "Deploy Release"
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extraer versión
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "🏷️ Releasing version $VERSION"
+
+      - name: Verificar LocalStack
+        run: |
+          curl -s http://localhost:4566/_localstack/health | \
+          grep -qE '"s3": "(available|running)"' && echo "✅ LocalStack OK"
+
+      - name: Build imagen con versión
+        run: |
+          eval $(minikube docker-env)
+          docker build -t mi-app-s3:${{ steps.version.outputs.VERSION }} ./app-localstack
+          docker tag mi-app-s3:${{ steps.version.outputs.VERSION }} mi-app-s3:latest
+          echo "✅ Imagen ${{ steps.version.outputs.VERSION }} construida"
+
+      - name: Deploy con Helm
+        run: |
+          helm upgrade --install app-s3 mi-repo/mi-app-chart \
+            --namespace default \
+            --set image.tag=local
+          kubectl rollout status deployment/app-s3-mi-app-chart --timeout=120s
+
+      - name: Resumen release
+        run: |
+          echo "=================================="
+          echo "🚀 Release v${{ steps.version.outputs.VERSION }} desplegada"
+          echo "Commit: ${{ github.sha }}"
+          echo "Fecha:  $(date)"
+          echo "=================================="
