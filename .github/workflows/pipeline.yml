@@ -31,13 +31,34 @@ jobs:
             exit 1
           fi
 
+  sonarcloud:
+    name: "2 - SonarCloud Analysis"
+    runs-on: ubuntu-latest
+    needs: verificar-localstack
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   # ============================================================
-  # JOB 2: Terraform - Infraestructura como Código
+  # JOB 3: Terraform - Infraestructura como Código
   # ============================================================
   terraform:
-    name: "2 - Terraform Apply"
+    name: "3 - Terraform Apply"
     runs-on: self-hosted
-    needs: verificar-localstack
+    needs: 
+      - verificar-localstack
+      - sonarcloud
     defaults:
       run:
         working-directory: terraform
@@ -74,10 +95,10 @@ jobs:
         run: terraform output
 
   # ============================================================
-  # JOB 3: Build Docker y Deploy en Minikube
+  # JOB 4: Build Docker y Deploy en Minikube
   # ============================================================
   build-and-deploy:
-    name: "3 - Build & Deploy en Minikube"
+    name: "4 - Build & Deploy en Minikube"
     runs-on: self-hosted
     needs: terraform
 
@@ -109,10 +130,10 @@ jobs:
           echo "✅ Deployment completado"
 
   # ============================================================
-  # JOB 4: Verificación post-deploy
+  # JOB 5: Verificación post-deploy
   # ============================================================
   verificar-deploy:
-    name: "4 - Verificar Deploy"
+    name: "5 - Verificar Deploy"
     runs-on: self-hosted
     needs: build-and-deploy
 
